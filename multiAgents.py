@@ -11,12 +11,12 @@
 # Student side autograding was added by Brad Miller, Nick Hay, and
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
-
-from util import manhattanDistance
 from game import Directions
 import random, util
 
 from game import Agent
+
+from collections import deque
 
 
 class ReflexAgent(Agent):
@@ -112,6 +112,11 @@ class MultiAgentSearchAgent(Agent):
 class MinimaxAgent(MultiAgentSearchAgent):
     PACMAN_AGENT_INDEX = 0
 
+    def __init__(self, evalFn='customEvaluation', depth='2'):
+        self.index = 0  # Pacman is always agent index 0
+        self.evaluationFunction = customEvaluation
+        self.depth = int(depth)
+
     def getAction(self, gameState):
         """
         Returns the minimax action from the current gameState using self.depth
@@ -157,7 +162,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
             if agent_index == 0:
                 depth += 1
             if depth == self.depth or state.isWin() or state.isLose():
-                return scoreEvaluationFunction(state)
+                return self.evaluationFunction(state)
             if agent_index == self.PACMAN_AGENT_INDEX:
                 return maxValue(state, depth)
             else:
@@ -170,10 +175,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
             if currentScore >= maxScore:
                 maxScore = currentScore
                 action = nextAction
-            else:
-                print(nextAction, " ===== ", currentScore)
 
-        print(action, " == ", maxScore)
         return action
 
 
@@ -215,6 +217,125 @@ def betterEvaluationFunction(currentGameState):
     """
     "*** YOUR CODE HERE ***"
     util.raiseNotDefined()
+
+
+def reverse_tuple(t):
+    new_tuple = ()
+    for i in range(len(t) - 1, -1, -1):
+        new_tuple += (t[i],)
+    return new_tuple
+
+
+def find_food(GameMap, start):
+    score = 0
+
+    directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # Possible movements: down, up, right, left
+    num_rows, num_cols = len(GameMap), len(GameMap[0])
+
+    h = [[float('-inf') for _ in range(num_cols)] for _ in range(num_rows)]
+
+    visited = set()
+    queue = deque([start])
+    visited.add(start)
+
+    fx, fy = start
+    h[fx][fy] = 0
+
+    while queue:
+        current_cell = queue.popleft()
+        x, y = current_cell
+        if GameMap[x][y] == "o":
+            return score + (10 / max(h[x][y], 1))
+        elif GameMap[x][y] == ".":
+            return score + (10 / max(h[x][y], 1))
+
+        for dx, dy in directions:
+            new_x, new_y = x + dx, y + dy
+
+            # Check if the new coordinates are within the bounds of the grid
+            if 0 <= new_x < num_rows and 0 <= new_y < num_cols:
+                # Check if the new cell is not a blocked cell ("%") or goal cell ("G")
+                if GameMap[new_x][new_y] not in ["%", "G"]:
+                    new_cell = (new_x, new_y)
+                    h[new_x][new_y] = h[x][y] + 1
+                    if new_cell not in visited:
+                        queue.append(new_cell)
+                        visited.add(new_cell)
+    return score
+
+
+def find_scared_ghost(GameMap, start, ghostState):
+    directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # Possible movements: down, up, right, left
+    num_rows, num_cols = len(GameMap), len(GameMap[0])
+
+    h = [[float('-inf') for _ in range(num_cols)] for _ in range(num_rows)]
+
+    start = reverse_tuple(start)
+    fx, fy = start
+    fx = int(fx)
+    fy = int(fy)
+    start = (fx, fy)
+
+    visited = set()
+    queue = deque([start])
+    visited.add(start)
+
+    fx, fy = start
+    h[fx][fy] = 0
+
+    while queue:
+        current_cell = queue.popleft()
+        x, y = current_cell
+
+        if GameMap[x][y] in ["<", ">", "v", "^"]:
+            if h[x][y] <= ghostState.scaredTimer * 1.7:
+                return h[x][y]
+            else:
+                return False
+
+        for dx, dy in directions:
+            new_x, new_y = x + dx, y + dy
+
+            # Check if the new coordinates are within the bounds of the grid
+            if 0 <= new_x < num_rows and 0 <= new_y < num_cols:
+                # Check if the new cell is not a blocked cell ("%") or goal cell ("G")
+                if GameMap[new_x][new_y] not in ["%", "G"]:
+                    new_cell = (new_x, new_y)
+                    h[new_x][new_y] = h[x][y] + 1
+                    if new_cell not in visited:
+                        queue.append(new_cell)
+                        visited.add(new_cell)
+    return False
+
+
+def customEvaluation(currentGameState):
+    if currentGameState.isWin() or currentGameState.isLose():
+        return currentGameState.getScore()
+    pacmanPosition = currentGameState.getPacmanPosition()  # 0->Column 1->
+    GameMap = currentGameState.__str__().splitlines()[:-1][::-1]
+
+    num_rows, num_cols = len(GameMap), len(GameMap[0])
+
+    # checks if it can eat a ghost
+    for i in range(currentGameState.getNumAgents() - 1):
+        ghostState = currentGameState.data.agentStates[i + 1]
+        ghostPosition = ghostState.configuration.getPosition()
+        if ghostState.scaredTimer > 0:
+            result = find_scared_ghost(GameMap, ghostPosition, ghostState)
+            if result:
+                return currentGameState.getScore() + (200 / max(result, 1))
+
+    # calculate remaining food
+    restFood = 0
+    for i in range(num_rows):
+        for j in range(num_cols):
+            if GameMap[i][j] in ['.', 'o']:
+                restFood += 1
+
+    pacmanPosition = reverse_tuple(pacmanPosition)
+    scoreEvl = find_food(GameMap, pacmanPosition)
+
+    return scoreEvl + currentGameState.getScore() - restFood * 2
 
 
 # Abbreviation
