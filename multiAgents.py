@@ -110,9 +110,7 @@ class MultiAgentSearchAgent(Agent):
 
 
 class MinimaxAgent(MultiAgentSearchAgent):
-    """
-    Your minimax agent (question 2)
-    """
+    PACMAN_AGENT_INDEX = 0
 
     def getAction(self, gameState):
         """
@@ -137,8 +135,46 @@ class MinimaxAgent(MultiAgentSearchAgent):
         gameState.isLose():
         Returns whether or not the game state is a losing state
         """
-        "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+
+        def maxValue(state, depth):
+            maxScore = float("-inf")
+            for nextAction in state.getLegalActions(self.PACMAN_AGENT_INDEX):
+                maxScore = max(maxScore,
+                               calculateScore(state.generateSuccessor(self.PACMAN_AGENT_INDEX, nextAction),
+                                              depth, 1))
+            return maxScore
+
+        def minValue(state, depth, ghost_index):
+            minScore = float("inf")
+            for nextAction in state.getLegalActions(ghost_index):
+                minScore = min(minScore,
+                               calculateScore(state.generateSuccessor(ghost_index, nextAction),
+                                              depth, ghost_index + 1))
+            return minScore
+
+        def calculateScore(state, depth, agent_index):
+            agent_index %= gameState.getNumAgents()
+            if agent_index == 0:
+                depth += 1
+            if depth == self.depth or state.isWin() or state.isLose():
+                return scoreEvaluationFunction(state)
+            if agent_index == self.PACMAN_AGENT_INDEX:
+                return maxValue(state, depth)
+            else:
+                return minValue(state, depth, agent_index)
+
+        action = Directions.STOP
+        maxScore = float("-inf")
+        for nextAction in gameState.getLegalActions():
+            currentScore = calculateScore(gameState.generateSuccessor(self.PACMAN_AGENT_INDEX, nextAction), 0, 1)
+            if currentScore >= maxScore:
+                maxScore = currentScore
+                action = nextAction
+            else:
+                print(nextAction, " ===== ", currentScore)
+
+        print(action, " == ", maxScore)
+        return action
 
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
